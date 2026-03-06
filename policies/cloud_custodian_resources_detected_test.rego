@@ -34,6 +34,26 @@ test_violation_when_execution_error_detected if {
   }] with input as fixture
 }
 
+test_violation_when_only_execution_errors_list_present if {
+  fixture := {
+    "check": {"name": "ec2-public-ip-check"},
+    "execution": {
+      "status": "error",
+      "error": "",
+      "errors": ["custodian execution failed"]
+    },
+    "result": {
+      "resources": []
+    }
+  }
+
+  count(cloud_custodian_resources_detected.violation) == 1 with input as fixture
+
+  cloud_custodian_resources_detected.violation[{
+    "remarks": "Cloud Custodian check \"ec2-public-ip-check\" failed during execution (status=\"error\"). error= errors=[\"custodian execution failed\"]"
+  }] with input as fixture
+}
+
 test_dynamic_title_and_description if {
   fixture := {
     "check": {"name": "ec2-public-ip-check"},
@@ -67,4 +87,17 @@ test_no_violation_when_no_resources if {
   }
 
   count(cloud_custodian_resources_detected.violation) == 0 with input as fixture
+}
+
+test_violation_when_check_missing_uses_unknown_check if {
+  fixture := {
+    "execution": {"status": "success", "error": "", "errors": []},
+    "result": {
+      "resources": [{"InstanceId": "i-123"}]
+    }
+  }
+
+  cloud_custodian_resources_detected.violation[{
+    "remarks": "Cloud Custodian check \"unknown-check\" matched 1 resource(s)."
+  }] with input as fixture
 }
