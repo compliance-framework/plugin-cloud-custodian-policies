@@ -4,8 +4,6 @@ package compliance_framework.cloud_custodian_resources_detected
 # 1) any matched resources in a Cloud Custodian check should produce a violation.
 # 2) any execution error in a Cloud Custodian check should produce a violation.
 
-default has_resources := false
-
 check_name := object.get(object.get(input, "check", {}), "name", "unknown-check")
 
 execution := object.get(input, "execution", {})
