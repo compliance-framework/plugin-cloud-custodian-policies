@@ -101,3 +101,17 @@ test_violation_when_check_missing_uses_unknown_check if {
     "remarks": "Cloud Custodian check \"unknown-check\" matched 1 resource(s)."
   }] with input as fixture
 }
+
+test_no_violation_when_resources_is_not_array if {
+  fixture := {
+    "check": {"name": "ec2-public-ip-check"},
+    "execution": {"status": "success", "error": "", "errors": []},
+    "result": {
+      "resources": null
+    }
+  }
+
+  count(cloud_custodian_resources_detected.violation) == 0 with input as fixture
+  cloud_custodian_resources_detected.title == "Cloud Custodian check \"ec2-public-ip-check\" status=\"success\"" with input as fixture
+  cloud_custodian_resources_detected.description == "Cloud Custodian check \"ec2-public-ip-check\" evaluated with status \"success\" and matched 0 resource(s). Execution errors (if any) are treated as violations." with input as fixture
+}

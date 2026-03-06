@@ -12,7 +12,14 @@ result := object.get(input, "result", {})
 check_status := object.get(execution, "status", "unknown")
 
 resources := object.get(result, "resources", [])
-resource_count := count(resources)
+
+resource_count := count(resources) if {
+  is_array(resources)
+}
+
+resource_count := 0 if {
+  not is_array(resources)
+}
 
 has_resources if {
   is_array(resources)
