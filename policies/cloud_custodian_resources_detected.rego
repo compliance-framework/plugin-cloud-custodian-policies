@@ -4,6 +4,7 @@ import rego.v1
 
 violation_id := "cloud_custodian_resource_non_compliant"
 execution_violation_id := "cloud_custodian_resource_evaluation_failed"
+unsupported_input_violation_id := "cloud_custodian_unsupported_input"
 
 _label_schema := [
 	{
@@ -72,12 +73,44 @@ risk_templates := [
 			],
 		},
 	},
+	{
+		"name": "Cloud Custodian policy received unsupported input",
+		"title": "Cloud Custodian policy received unsupported input {{ .source }}/{{ .schema_version }}",
+		"statement": "This policy expected Cloud Custodian per-resource input with schema_version v2 and source cloud-custodian, but received source {{ .source }} and schema_version {{ .schema_version }}. The policy input wiring should be corrected before the compliance result is trusted.",
+		"likelihood_hint": "low",
+		"impact_hint": "moderate",
+		"violation_ids": [unsupported_input_violation_id],
+		"dedupe_label_keys": ["source", "schema_version"],
+		"label_schema": [
+			{
+				"key": "source",
+				"description": "Input source passed to the policy",
+			},
+			{
+				"key": "schema_version",
+				"description": "Input schema version passed to the policy",
+			},
+		],
+		"remediation": {
+			"title": "Correct the Cloud Custodian policy input wiring",
+			"description": "Ensure this policy is evaluated only against the standardized Cloud Custodian per-resource payload.",
+			"tasks": [
+				{"title": "Confirm the plugin is sending schema_version v2 payloads"},
+				{"title": "Confirm the input source label is cloud-custodian"},
+				{"title": "Re-run the policy after correcting the upstream payload wiring"},
+			],
+		},
+	},
 ]
 
 _check := object.get(input, "check", {})
 _resource := object.get(input, "resource", {})
 _assessment := object.get(input, "assessment", {})
 _execution := object.get(input, "execution", {})
+
+input_schema_version := _default_string(object.get(input, "schema_version", ""), "unknown-schema-version")
+
+input_source := _default_string(object.get(input, "source", ""), "unknown-source")
 
 _default_string(value, fallback) := result if {
 	is_string(value)
@@ -149,6 +182,11 @@ execution_error := _default_string(object.get(_execution, "error", ""), "")
 
 execution_errors := object.get(_execution, "errors", [])
 
+supported_input if {
+	input_schema_version == "v2"
+	input_source == "cloud-custodian"
+}
+
 has_execution_error if {
 	execution_status == "error"
 }
@@ -163,6 +201,8 @@ has_execution_error if {
 }
 
 _base_labels := {
+	"schema_version": input_schema_version,
+	"source": input_source,
 	"resource_type": resource_type,
 	"resource_id": resource_id,
 	"resource_name": resource_name,
@@ -201,15 +241,34 @@ labels := object.union(
 )
 
 violation[{"id": violation_id, "remarks": msg}] if {
+	supported_input
 	assessment_status == "non_compliant"
 	msg := sprintf("Cloud Custodian check %q marked resource %q as non-compliant (matched=%v, inventory_status=%q).", [check_name, resource_ref, assessment_matched, inventory_status])
 }
 
 violation[{"id": execution_violation_id, "remarks": msg}] if {
+	supported_input
 	has_execution_error
 	msg := sprintf("Cloud Custodian check %q failed while evaluating resource %q (execution_status=%q, error=%v, errors=%v).", [check_name, resource_ref, execution_status, execution_error, execution_errors])
 }
 
-title := sprintf("Cloud Custodian check %s on resource %s", [check_name, resource_ref])
+violation[{"id": unsupported_input_violation_id, "remarks": msg}] if {
+	not supported_input
+	msg := sprintf("Unsupported Cloud Custodian policy input: expected source=%q schema_version=%q but received source=%q schema_version=%q.", ["cloud-custodian", "v2", input_source, input_schema_version])
+}
 
-description := sprintf("Cloud Custodian check %q evaluated resource %q with assessment status %q and execution status %q.", [check_name, resource_ref, assessment_status, execution_status])
+title := "Cloud Custodian policy received unsupported input" if {
+	not supported_input
+}
+
+title := sprintf("Cloud Custodian check %s on resource %s", [check_name, resource_ref]) if {
+	supported_input
+}
+
+description := sprintf("Cloud Custodian policy expected source=%q schema_version=%q but received source=%q schema_version=%q.", ["cloud-custodian", "v2", input_source, input_schema_version]) if {
+	not supported_input
+}
+
+description := sprintf("Cloud Custodian check %q evaluated resource %q with assessment status %q and execution status %q.", [check_name, resource_ref, assessment_status, execution_status]) if {
+	supported_input
+}

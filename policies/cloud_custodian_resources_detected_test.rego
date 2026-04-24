@@ -56,6 +56,24 @@ test_compliant_resource_produces_no_violation if {
 	count(cloud_custodian_resources_detected.violation) == 0 with input as fixture
 }
 
+test_unsupported_input_produces_dedicated_violation if {
+	fixture := {
+		"schema_version": "v1",
+		"source": "legacy-cloud-custodian",
+		"assessment": {"status": "non_compliant"},
+		"execution": {"status": "error", "error": "boom", "errors": ["boom"]},
+	}
+
+	violations := cloud_custodian_resources_detected.violation with input as fixture
+	count(violations) == 1
+	violations[{
+		"id": "cloud_custodian_unsupported_input",
+		"remarks": "Unsupported Cloud Custodian policy input: expected source=\"cloud-custodian\" schema_version=\"v2\" but received source=\"legacy-cloud-custodian\" schema_version=\"v1\".",
+	}]
+	cloud_custodian_resources_detected.title == "Cloud Custodian policy received unsupported input" with input as fixture
+	cloud_custodian_resources_detected.description == "Cloud Custodian policy expected source=\"cloud-custodian\" schema_version=\"v2\" but received source=\"legacy-cloud-custodian\" schema_version=\"v1\"." with input as fixture
+}
+
 test_execution_failure_produces_violation_even_when_assessment_is_compliant if {
 	fixture := object.union_n([
 		_payload("compliant"),
@@ -186,7 +204,7 @@ test_risk_templates_are_resource_deduped if {
 	fixture := _payload("non_compliant")
 
 	risk_templates := cloud_custodian_resources_detected.risk_templates with input as fixture
-	count(risk_templates) == 2
+	count(risk_templates) == 3
 	risk_templates[0].name == "Cloud Custodian resource policy non-compliance"
 	risk_templates[0].title == "Cloud resource {{ .resource_type }}/{{ .resource_name }} may be non-compliant"
 	risk_templates[0].violation_ids == ["cloud_custodian_resource_non_compliant"]
@@ -209,6 +227,14 @@ test_risk_templates_are_resource_deduped if {
 	count(risk_templates[1].label_schema) == 6
 	risk_templates[1].remediation.title == "Investigate and rerun the failing Cloud Custodian evaluation"
 	count(risk_templates[1].remediation.tasks) == 3
+
+	risk_templates[2].name == "Cloud Custodian policy received unsupported input"
+	risk_templates[2].title == "Cloud Custodian policy received unsupported input {{ .source }}/{{ .schema_version }}"
+	risk_templates[2].violation_ids == ["cloud_custodian_unsupported_input"]
+	risk_templates[2].dedupe_label_keys == ["source", "schema_version"]
+	count(risk_templates[2].label_schema) == 2
+	risk_templates[2].remediation.title == "Correct the Cloud Custodian policy input wiring"
+	count(risk_templates[2].remediation.tasks) == 3
 }
 
 test_missing_optional_fields_fall_back_safely if {
