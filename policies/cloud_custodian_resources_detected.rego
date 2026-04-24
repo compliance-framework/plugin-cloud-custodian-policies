@@ -77,8 +77,9 @@ resource_type := _default_string(object.get(_resource, "type", object.get(_check
 resource_id := _default_string(object.get(_resource, "id", ""), "unknown-resource-id")
 
 _last_segment(value, separator) := segment if {
+	contains(value, separator)
 	parts := [part | some part in split(value, separator); part != ""]
-	count(parts) > 1
+	count(parts) > 0
 	segment := parts[count(parts) - 1]
 }
 

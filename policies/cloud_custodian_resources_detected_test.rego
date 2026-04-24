@@ -148,6 +148,28 @@ test_display_name_uses_last_colon_segment_when_no_path if {
 	cloud_custodian_resources_detected.title == "Cloud Custodian check ec2-public-ip-check on resource aws.s3/example-bucket" with input as fixture
 }
 
+test_display_name_handles_leading_or_trailing_path_separators if {
+	trailing := object.union_n([
+		_payload("compliant"),
+		{"resource": {
+			"id": "role/aws-service-role/",
+			"type": "aws.iam-role",
+			"provider": "aws",
+		}},
+	])
+	leading := object.union_n([
+		_payload("compliant"),
+		{"resource": {
+			"id": "/AWSServiceRoleForResourceExplorer",
+			"type": "aws.iam-role",
+			"provider": "aws",
+		}},
+	])
+
+	cloud_custodian_resources_detected.title == "Cloud Custodian check ec2-public-ip-check on resource aws.iam-role/aws-service-role" with input as trailing
+	cloud_custodian_resources_detected.title == "Cloud Custodian check ec2-public-ip-check on resource aws.iam-role/AWSServiceRoleForResourceExplorer" with input as leading
+}
+
 test_labels_include_dedupe_and_optional_context_values if {
 	fixture := _payload("non_compliant")
 
