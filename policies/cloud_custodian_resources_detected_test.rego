@@ -71,7 +71,7 @@ test_execution_failure_produces_violation_even_when_assessment_is_compliant if {
 	violations := cloud_custodian_resources_detected.violation with input as fixture
 	count(violations) == 1
 	count([1 |
-		violations[{"id": "cloud_custodian_resource_non_compliant", "remarks": remarks}]
+		violations[{"id": "cloud_custodian_resource_evaluation_failed", "remarks": remarks}]
 		contains(remarks, "Cloud Custodian check \"ec2-public-ip-check\" failed while evaluating resource \"aws.ec2/i-123\"")
 		contains(remarks, "execution_status=\"error\"")
 		contains(remarks, "custodian execution failed")
@@ -97,7 +97,7 @@ test_execution_failure_and_non_compliant_assessment_produce_two_violations if {
 		"remarks": "Cloud Custodian check \"ec2-public-ip-check\" marked resource \"aws.ec2/i-123\" as non-compliant (matched=true, inventory_status=\"baseline\").",
 	}]
 	count([1 |
-		violations[{"id": "cloud_custodian_resource_non_compliant", "remarks": remarks}]
+		violations[{"id": "cloud_custodian_resource_evaluation_failed", "remarks": remarks}]
 		contains(remarks, "Cloud Custodian check \"ec2-public-ip-check\" failed while evaluating resource \"aws.ec2/i-123\"")
 		contains(remarks, "execution_status=\"error\"")
 		contains(remarks, "custodian execution failed")
@@ -186,7 +186,7 @@ test_risk_templates_are_resource_deduped if {
 	fixture := _payload("non_compliant")
 
 	risk_templates := cloud_custodian_resources_detected.risk_templates with input as fixture
-	count(risk_templates) == 1
+	count(risk_templates) == 2
 	risk_templates[0].name == "Cloud Custodian resource policy non-compliance"
 	risk_templates[0].title == "Cloud resource {{ .resource_type }}/{{ .resource_name }} may be non-compliant"
 	risk_templates[0].violation_ids == ["cloud_custodian_resource_non_compliant"]
@@ -201,6 +201,14 @@ test_risk_templates_are_resource_deduped if {
 	risk_templates[0].label_schema[5].key == "region"
 	risk_templates[0].remediation.title == "Remediate the failing Cloud Custodian policy condition"
 	count(risk_templates[0].remediation.tasks) == 4
+
+	risk_templates[1].name == "Cloud Custodian resource evaluation failure"
+	risk_templates[1].title == "Cloud Custodian could not fully evaluate {{ .resource_type }}/{{ .resource_name }}"
+	risk_templates[1].violation_ids == ["cloud_custodian_resource_evaluation_failed"]
+	risk_templates[1].dedupe_label_keys == ["resource_type", "resource_id"]
+	count(risk_templates[1].label_schema) == 6
+	risk_templates[1].remediation.title == "Investigate and rerun the failing Cloud Custodian evaluation"
+	count(risk_templates[1].remediation.tasks) == 3
 }
 
 test_missing_optional_fields_fall_back_safely if {

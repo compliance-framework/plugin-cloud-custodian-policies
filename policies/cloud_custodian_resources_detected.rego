@@ -3,52 +3,76 @@ package compliance_framework.cloud_custodian_resources_detected
 import rego.v1
 
 violation_id := "cloud_custodian_resource_non_compliant"
+execution_violation_id := "cloud_custodian_resource_evaluation_failed"
 
-risk_templates := [{
-	"name": "Cloud Custodian resource policy non-compliance",
-	"title": "Cloud resource {{ .resource_type }}/{{ .resource_name }} may be non-compliant",
-	"statement": "Cloud Custodian reported resource {{ .resource_name }} of type {{ .resource_type }} as non-compliant with one or more configured cloud policy checks. The resource may expose the organization to misconfiguration, compliance, or security risk until the failing policy condition is remediated.",
-	"likelihood_hint": "moderate",
-	"impact_hint": "high",
-	"violation_ids": [violation_id],
-	"dedupe_label_keys": ["resource_type", "resource_id"],
-	"label_schema": [
-		{
-			"key": "resource_type",
-			"description": "Cloud Custodian resource type such as aws.ec2 or aws.s3",
-		},
-		{
-			"key": "resource_id",
-			"description": "Stable resource identifier extracted from the Cloud Custodian resource data",
-		},
-		{
-			"key": "resource_name",
-			"description": "Short display name derived from the resource identifier",
-		},
-		{
-			"key": "provider",
-			"description": "Cloud provider from the Cloud Custodian resource or check provider field when available",
-		},
-		{
-			"key": "account_id",
-			"description": "Cloud account identifier when available in the resource data",
-		},
-		{
-			"key": "region",
-			"description": "Cloud region when available in the resource data",
-		},
-	],
-	"remediation": {
-		"title": "Remediate the failing Cloud Custodian policy condition",
-		"description": "Review the Cloud Custodian check and update the affected resource configuration so it no longer matches the non-compliant policy condition.",
-		"tasks": [
-			{"title": "Review the Cloud Custodian check that marked the resource non-compliant"},
-			{"title": "Inspect the affected resource configuration and ownership context"},
-			{"title": "Apply the required cloud configuration or access-control change"},
-			{"title": "Re-run the Cloud Custodian assessment to confirm the resource is compliant"},
-		],
+_label_schema := [
+	{
+		"key": "resource_type",
+		"description": "Cloud Custodian resource type such as aws.ec2 or aws.s3",
 	},
-}]
+	{
+		"key": "resource_id",
+		"description": "Stable resource identifier extracted from the Cloud Custodian resource data",
+	},
+	{
+		"key": "resource_name",
+		"description": "Short display name derived from the resource identifier",
+	},
+	{
+		"key": "provider",
+		"description": "Cloud provider from the Cloud Custodian resource or check provider field when available",
+	},
+	{
+		"key": "account_id",
+		"description": "Cloud account identifier when available in the resource data",
+	},
+	{
+		"key": "region",
+		"description": "Cloud region when available in the resource data",
+	},
+]
+
+risk_templates := [
+	{
+		"name": "Cloud Custodian resource policy non-compliance",
+		"title": "Cloud resource {{ .resource_type }}/{{ .resource_name }} may be non-compliant",
+		"statement": "Cloud Custodian reported resource {{ .resource_name }} of type {{ .resource_type }} as non-compliant with one or more configured cloud policy checks. The resource may expose the organization to misconfiguration, compliance, or security risk until the failing policy condition is remediated.",
+		"likelihood_hint": "moderate",
+		"impact_hint": "high",
+		"violation_ids": [violation_id],
+		"dedupe_label_keys": ["resource_type", "resource_id"],
+		"label_schema": _label_schema,
+		"remediation": {
+			"title": "Remediate the failing Cloud Custodian policy condition",
+			"description": "Review the Cloud Custodian check and update the affected resource configuration so it no longer matches the non-compliant policy condition.",
+			"tasks": [
+				{"title": "Review the Cloud Custodian check that marked the resource non-compliant"},
+				{"title": "Inspect the affected resource configuration and ownership context"},
+				{"title": "Apply the required cloud configuration or access-control change"},
+				{"title": "Re-run the Cloud Custodian assessment to confirm the resource is compliant"},
+			],
+		},
+	},
+	{
+		"name": "Cloud Custodian resource evaluation failure",
+		"title": "Cloud Custodian could not fully evaluate {{ .resource_type }}/{{ .resource_name }}",
+		"statement": "Cloud Custodian failed while evaluating resource {{ .resource_name }} of type {{ .resource_type }}. Because the policy run did not complete successfully, the compliance state of the resource could not be confirmed and requires investigation.",
+		"likelihood_hint": "moderate",
+		"impact_hint": "moderate",
+		"violation_ids": [execution_violation_id],
+		"dedupe_label_keys": ["resource_type", "resource_id"],
+		"label_schema": _label_schema,
+		"remediation": {
+			"title": "Investigate and rerun the failing Cloud Custodian evaluation",
+			"description": "Review the execution failure details, correct the underlying evaluation problem, and rerun the Cloud Custodian check so the resource can be assessed successfully.",
+			"tasks": [
+				{"title": "Review the Cloud Custodian execution error and stderr output"},
+				{"title": "Fix the policy, credentials, permissions, or API issue causing the evaluation failure"},
+				{"title": "Re-run the Cloud Custodian check to confirm the resource can be evaluated successfully"},
+			],
+		},
+	},
+]
 
 _check := object.get(input, "check", {})
 _resource := object.get(input, "resource", {})
@@ -83,18 +107,26 @@ _last_segment(value, separator) := segment if {
 	segment := parts[count(parts) - 1]
 }
 
-resource_name := _last_segment(resource_id, "/") if {
-	_last_segment(resource_id, "/") != ""
+_resource_name_from_slash := value if {
+	value := _last_segment(resource_id, "/")
+} else := ""
+
+_resource_name_from_colon := value if {
+	value := _last_segment(resource_id, ":")
+} else := ""
+
+resource_name := _resource_name_from_slash if {
+	_resource_name_from_slash != ""
 }
 
-resource_name := _last_segment(resource_id, ":") if {
-	not _last_segment(resource_id, "/")
-	_last_segment(resource_id, ":") != ""
+resource_name := _resource_name_from_colon if {
+	_resource_name_from_slash == ""
+	_resource_name_from_colon != ""
 }
 
 resource_name := resource_id if {
-	not _last_segment(resource_id, "/")
-	not _last_segment(resource_id, ":")
+	_resource_name_from_slash == ""
+	_resource_name_from_colon == ""
 }
 
 resource_ref := sprintf("%s/%s", [resource_type, resource_name])
@@ -173,7 +205,7 @@ violation[{"id": violation_id, "remarks": msg}] if {
 	msg := sprintf("Cloud Custodian check %q marked resource %q as non-compliant (matched=%v, inventory_status=%q).", [check_name, resource_ref, assessment_matched, inventory_status])
 }
 
-violation[{"id": violation_id, "remarks": msg}] if {
+violation[{"id": execution_violation_id, "remarks": msg}] if {
 	has_execution_error
 	msg := sprintf("Cloud Custodian check %q failed while evaluating resource %q (execution_status=%q, error=%v, errors=%v).", [check_name, resource_ref, execution_status, execution_error, execution_errors])
 }
