@@ -13,14 +13,14 @@ help-all: ## Display all help items, ie including plumbing targets
 
 ##@ Policies
 test: ## Test policy files
-	@OPA test policies
+	@$(OPA) test policies
 
 validate: ## Validate policy files
-	@opa check policies
+	@$(OPA) check policies
 
 clean: # Cleanup build artifacts
 	@rm -f dist/*
 
 build: clean ## Build the policy bundle
 	@mkdir -p dist/
-	@opa build -b policies -o dist/bundle.tar.gz
+	@$(OPA) build -b policies -o dist/bundle.tar.gz
