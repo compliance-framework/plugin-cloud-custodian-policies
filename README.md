@@ -2,6 +2,8 @@
 
 ## Testing
 
+This policy bundle uses `import rego.v1`, so `opa test` / `make test` require an OPA release with Rego v1 support. In practice, use OPA `1.x` or newer.
+
 ```shell
 opa test policies
 ```

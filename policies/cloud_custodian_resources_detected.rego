@@ -27,7 +27,7 @@ risk_templates := [{
 		},
 		{
 			"key": "provider",
-			"description": "Cloud provider derived from the Cloud Custodian resource type",
+			"description": "Cloud provider from the Cloud Custodian resource or check provider field when available",
 		},
 		{
 			"key": "account_id",
@@ -112,6 +112,23 @@ inventory_status := _default_string(object.get(_assessment, "inventory_status", 
 
 execution_status := _default_string(object.get(_execution, "status", ""), "unknown-execution-status")
 
+execution_error := _default_string(object.get(_execution, "error", ""), "")
+
+execution_errors := object.get(_execution, "errors", [])
+
+has_execution_error if {
+	execution_status == "error"
+}
+
+has_execution_error if {
+	execution_error != ""
+}
+
+has_execution_error if {
+	is_array(execution_errors)
+	count(execution_errors) > 0
+}
+
 _base_labels := {
 	"resource_type": resource_type,
 	"resource_id": resource_id,
@@ -153,6 +170,11 @@ labels := object.union(
 violation[{"id": violation_id, "remarks": msg}] if {
 	assessment_status == "non_compliant"
 	msg := sprintf("Cloud Custodian check %q marked resource %q as non-compliant (matched=%v, inventory_status=%q).", [check_name, resource_ref, assessment_matched, inventory_status])
+}
+
+violation[{"id": violation_id, "remarks": msg}] if {
+	has_execution_error
+	msg := sprintf("Cloud Custodian check %q failed while evaluating resource %q (execution_status=%q, error=%v, errors=%v).", [check_name, resource_ref, execution_status, execution_error, execution_errors])
 }
 
 title := sprintf("Cloud Custodian check %s on resource %s", [check_name, resource_ref])

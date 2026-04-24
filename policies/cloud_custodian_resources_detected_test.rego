@@ -56,6 +56,54 @@ test_compliant_resource_produces_no_violation if {
 	count(cloud_custodian_resources_detected.violation) == 0 with input as fixture
 }
 
+test_execution_failure_produces_violation_even_when_assessment_is_compliant if {
+	fixture := object.union_n([
+		_payload("compliant"),
+		{"execution": {
+			"status": "error",
+			"dry_run": true,
+			"exit_code": 1,
+			"error": "custodian execution failed",
+			"errors": ["custodian execution failed"],
+		}},
+	])
+
+	violations := cloud_custodian_resources_detected.violation with input as fixture
+	count(violations) == 1
+	count([1 |
+		violations[{"id": "cloud_custodian_resource_non_compliant", "remarks": remarks}]
+		contains(remarks, "Cloud Custodian check \"ec2-public-ip-check\" failed while evaluating resource \"aws.ec2/i-123\"")
+		contains(remarks, "execution_status=\"error\"")
+		contains(remarks, "custodian execution failed")
+	]) == 1
+}
+
+test_execution_failure_and_non_compliant_assessment_produce_two_violations if {
+	fixture := object.union_n([
+		_payload("non_compliant"),
+		{"execution": {
+			"status": "error",
+			"dry_run": true,
+			"exit_code": 1,
+			"error": "custodian execution failed",
+			"errors": ["custodian execution failed"],
+		}},
+	])
+
+	violations := cloud_custodian_resources_detected.violation with input as fixture
+	count(violations) == 2
+	violations[{
+		"id": "cloud_custodian_resource_non_compliant",
+		"remarks": "Cloud Custodian check \"ec2-public-ip-check\" marked resource \"aws.ec2/i-123\" as non-compliant (matched=true, inventory_status=\"baseline\").",
+	}]
+	count([1 |
+		violations[{"id": "cloud_custodian_resource_non_compliant", "remarks": remarks}]
+		contains(remarks, "Cloud Custodian check \"ec2-public-ip-check\" failed while evaluating resource \"aws.ec2/i-123\"")
+		contains(remarks, "execution_status=\"error\"")
+		contains(remarks, "custodian execution failed")
+	]) == 1
+}
+
 test_dynamic_title_and_description_use_resource_payload if {
 	fixture := _payload("non_compliant")
 
@@ -126,6 +174,7 @@ test_risk_templates_are_resource_deduped if {
 	risk_templates[0].label_schema[1].key == "resource_id"
 	risk_templates[0].label_schema[2].key == "resource_name"
 	risk_templates[0].label_schema[3].key == "provider"
+	risk_templates[0].label_schema[3].description == "Cloud provider from the Cloud Custodian resource or check provider field when available"
 	risk_templates[0].label_schema[4].key == "account_id"
 	risk_templates[0].label_schema[5].key == "region"
 	risk_templates[0].remediation.title == "Remediate the failing Cloud Custodian policy condition"
