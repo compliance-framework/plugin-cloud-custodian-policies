@@ -5,6 +5,7 @@ import rego.v1
 violation_id := "cloud_custodian_resource_non_compliant"
 execution_violation_id := "cloud_custodian_resource_evaluation_failed"
 unsupported_input_violation_id := "cloud_custodian_unsupported_input"
+stderr_max_chars := 500
 
 _label_schema := [
 	{
@@ -128,6 +129,22 @@ _default_string(value, fallback) := fallback if {
 	not is_string(value)
 }
 
+_safe_stderr(value) := result if {
+	first_line := split(value, "\n")[0]
+	without_control_chars := regex.replace(first_line, "[[:cntrl:]]+", " ")
+	without_authorization := regex.replace(without_control_chars, "(?i)authorization[[:space:]]*:[[:space:]]*[^[:space:]]+([[:space:]]+[^[:space:]]+)?", "Authorization: <redacted>")
+	without_secret_values := regex.replace(without_authorization, "(?i)(password|token|secret|access[_-]?key)([[:space:]]*[:=][[:space:]]*)[^[:space:]]+", "$1$2<redacted>")
+	result := _truncate_error_detail(without_secret_values)
+}
+
+_truncate_error_detail(value) := value if {
+	count(value) <= stderr_max_chars
+}
+
+_truncate_error_detail(value) := sprintf("%s...", [substring(value, 0, stderr_max_chars)]) if {
+	count(value) > stderr_max_chars
+}
+
 check_name := _default_string(object.get(_check, "name", ""), "unknown-check")
 
 resource_type := _default_string(object.get(_resource, "type", object.get(_check, "resource", "")), "unknown-resource-type")
@@ -183,7 +200,7 @@ execution_exit_code := object.get(_execution, "exit_code", "unknown-exit-code")
 
 execution_error := _default_string(object.get(_execution, "error", ""), "")
 
-execution_stderr := _default_string(object.get(_execution, "stderr", ""), "")
+execution_stderr := _safe_stderr(_default_string(object.get(_execution, "stderr", ""), ""))
 
 execution_errors := object.get(_execution, "errors", [])
 

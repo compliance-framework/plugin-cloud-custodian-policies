@@ -180,7 +180,7 @@ test_execution_failure_remark_uses_stderr_when_error_details_are_empty if {
 			"exit_code": 3,
 			"error": "",
 			"errors": [],
-			"stderr": "access denied reading EC2 instances",
+			"stderr": "access denied reading EC2 instances\nsecond log line should not be included",
 		}},
 	])
 
@@ -190,6 +190,46 @@ test_execution_failure_remark_uses_stderr_when_error_details_are_empty if {
 		"id": "cloud_custodian_resource_evaluation_failed",
 		"remarks": "Cloud Custodian policy \"ec2-public-ip-check\" ran with errors while evaluating resource \"aws.ec2/i-123\" (execution_status=\"error\", exit_code=3). Errors: access denied reading EC2 instances.",
 	}]
+}
+
+test_execution_failure_remark_redacts_sensitive_stderr_values if {
+	fixture := object.union_n([
+		_payload("compliant"),
+		{"execution": {
+			"status": "error",
+			"dry_run": true,
+			"exit_code": 3,
+			"error": "",
+			"errors": [],
+			"stderr": "Authorization: Bearer secret-token token=abc123 password=hunter2 access_key=AKIAEXAMPLE",
+		}},
+	])
+
+	violations := cloud_custodian_resources_detected.violation with input as fixture
+	count(violations) == 1
+	violations[{
+		"id": "cloud_custodian_resource_evaluation_failed",
+		"remarks": "Cloud Custodian policy \"ec2-public-ip-check\" ran with errors while evaluating resource \"aws.ec2/i-123\" (execution_status=\"error\", exit_code=3). Errors: Authorization: <redacted> token=<redacted> password=<redacted> access_key=<redacted>.",
+	}]
+}
+
+test_execution_failure_remark_truncates_long_stderr if {
+	long_stderr := sprintf("%sDO_NOT_INCLUDE", [concat("", ["x" | some i in numbers.range(1, 520)])])
+	fixture := object.union_n([
+		_payload("compliant"),
+		{"execution": {
+			"status": "error",
+			"dry_run": true,
+			"exit_code": 3,
+			"error": "",
+			"errors": [],
+			"stderr": long_stderr,
+		}},
+	])
+
+	remarks := cloud_custodian_resources_detected.remarks with input as fixture
+	contains(remarks, sprintf("Errors: %s...", [concat("", ["x" | some i in numbers.range(1, 500)])]))
+	not contains(remarks, "DO_NOT_INCLUDE")
 }
 
 test_execution_failure_remark_handles_missing_error_details if {
