@@ -132,7 +132,7 @@ _default_string(value, fallback) := fallback if {
 _safe_stderr(value) := result if {
 	first_line := split(value, "\n")[0]
 	without_control_chars := regex.replace(first_line, "[[:cntrl:]]+", " ")
-	without_authorization := regex.replace(without_control_chars, "(?i)authorization[[:space:]]*:[[:space:]]*[^[:space:]]+([[:space:]]+[^[:space:]]+)?", "Authorization: <redacted>")
+	without_authorization := regex.replace(without_control_chars, "(?i)authorization[[:space:]]*:[[:space:]]*.*", "Authorization: <redacted>")
 	without_secret_values := regex.replace(without_authorization, "(?i)(password|token|secret|access[_-]?key)([[:space:]]*[:=][[:space:]]*)[^[:space:]]+", "$1$2<redacted>")
 	result := _truncate_error_detail(without_secret_values)
 }
@@ -369,20 +369,20 @@ description_base := sprintf("Cloud Custodian check %q failed for resource %q.", 
 description_base := sprintf("Cloud Custodian check %q could not evaluate resource %q.", [check_name, resource_ref]) if {
 	supported_input
 	not is_non_compliant
-	execution_status == "error"
+	is_execution_failed
 }
 
 description_base := sprintf("Cloud Custodian check %q passed for resource %q.", [check_name, resource_ref]) if {
 	supported_input
 	is_compliant
-	execution_status != "error"
+	not is_execution_failed
 }
 
 description_base := sprintf("Cloud Custodian check %q evaluated resource %q.", [check_name, resource_ref]) if {
 	supported_input
 	not is_non_compliant
 	not is_compliant
-	execution_status != "error"
+	not is_execution_failed
 }
 
 has_non_compliance_message if {
@@ -391,29 +391,29 @@ has_non_compliance_message if {
 }
 
 description_execution_error := sprintf("Execution errors: %s.", [execution_error_details]) if {
-	execution_status == "error"
+	is_execution_failed
 }
 
 description := sprintf("%s %s %s", [description_base, non_compliance_message, description_execution_error]) if {
 	supported_input
 	has_non_compliance_message
-	execution_status == "error"
+	is_execution_failed
 }
 
 description := sprintf("%s %s", [description_base, non_compliance_message]) if {
 	supported_input
 	has_non_compliance_message
-	execution_status != "error"
+	not is_execution_failed
 }
 
 description := sprintf("%s %s", [description_base, description_execution_error]) if {
 	supported_input
 	not has_non_compliance_message
-	execution_status == "error"
+	is_execution_failed
 }
 
 description := description_base if {
 	supported_input
 	not has_non_compliance_message
-	execution_status != "error"
+	not is_execution_failed
 }

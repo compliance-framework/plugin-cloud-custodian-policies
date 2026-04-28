@@ -209,8 +209,42 @@ test_execution_failure_remark_redacts_sensitive_stderr_values if {
 	count(violations) == 1
 	violations[{
 		"id": "cloud_custodian_resource_evaluation_failed",
-		"remarks": "Cloud Custodian policy \"ec2-public-ip-check\" ran with errors while evaluating resource \"aws.ec2/i-123\" (execution_status=\"error\", exit_code=3). Errors: Authorization: <redacted> token=<redacted> password=<redacted> access_key=<redacted>.",
+		"remarks": "Cloud Custodian policy \"ec2-public-ip-check\" ran with errors while evaluating resource \"aws.ec2/i-123\" (execution_status=\"error\", exit_code=3). Errors: Authorization: <redacted>.",
 	}]
+}
+
+test_execution_failure_remark_redacts_full_authorization_header if {
+	fixture := object.union_n([
+		_payload("compliant"),
+		{"execution": {
+			"status": "error",
+			"dry_run": true,
+			"exit_code": 3,
+			"error": "",
+			"errors": [],
+			"stderr": "Authorization: AWS4-HMAC-SHA256 Credential=AKIAEXAMPLE SignedHeaders=host Signature=abcdef",
+		}},
+	])
+
+	remarks := cloud_custodian_resources_detected.remarks with input as fixture
+	contains(remarks, "Errors: Authorization: <redacted>.")
+	not contains(remarks, "Credential=")
+	not contains(remarks, "Signature=")
+}
+
+test_execution_error_detail_overrides_success_status_in_description if {
+	fixture := object.union_n([
+		_payload("compliant"),
+		{"execution": {
+			"status": "success",
+			"dry_run": true,
+			"exit_code": 0,
+			"error": "custodian reported a warning as error",
+			"errors": [],
+		}},
+	])
+
+	cloud_custodian_resources_detected.description == "Cloud Custodian check \"ec2-public-ip-check\" could not evaluate resource \"aws.ec2/i-123\". Execution errors: custodian reported a warning as error." with input as fixture
 }
 
 test_execution_failure_remark_truncates_long_stderr if {
