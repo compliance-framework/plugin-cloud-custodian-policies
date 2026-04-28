@@ -107,6 +107,7 @@ _check := object.get(input, "check", {})
 _resource := object.get(input, "resource", {})
 _assessment := object.get(input, "assessment", {})
 _execution := object.get(input, "execution", {})
+_raw_policy := object.get(input, "raw_policy", {})
 
 input_schema_version := _default_string(object.get(input, "schema_version", ""), "unknown-schema-version")
 
@@ -178,9 +179,43 @@ inventory_status := _default_string(object.get(_assessment, "inventory_status", 
 
 execution_status := _default_string(object.get(_execution, "status", ""), "unknown-execution-status")
 
+execution_exit_code := object.get(_execution, "exit_code", "unknown-exit-code")
+
 execution_error := _default_string(object.get(_execution, "error", ""), "")
 
+execution_stderr := _default_string(object.get(_execution, "stderr", ""), "")
+
 execution_errors := object.get(_execution, "errors", [])
+
+execution_error_messages_from_array := messages if {
+	is_array(execution_errors)
+	messages := [msg |
+		some msg in execution_errors
+		is_string(msg)
+		msg != ""
+	]
+	count(messages) > 0
+} else := []
+
+execution_error_messages := execution_error_messages_from_array if {
+	count(execution_error_messages_from_array) > 0
+} else := [execution_error] if {
+	execution_error != ""
+} else := [execution_stderr] if {
+	execution_stderr != ""
+} else := []
+
+execution_error_details := concat("; ", execution_error_messages) if {
+	count(execution_error_messages) > 0
+} else := "no detailed error message was provided"
+
+raw_policy_name := _default_string(object.get(_raw_policy, "name", ""), check_name)
+
+raw_policy_resource := _default_string(object.get(_raw_policy, "resource", ""), resource_type)
+
+non_compliance_message := _default_string(object.get(_raw_policy, "non_compliance_message", ""), "")
+
+matched_resource_count := object.get(_assessment, "matched_resource_count", "unknown")
 
 supported_input if {
 	input_schema_version == "v2"
@@ -196,8 +231,7 @@ has_execution_error if {
 }
 
 has_execution_error if {
-	is_array(execution_errors)
-	count(execution_errors) > 0
+	count(execution_error_messages_from_array) > 0
 }
 
 _base_labels := {
@@ -240,21 +274,62 @@ labels := object.union(
 	_region_label,
 )
 
-violation[{"id": violation_id, "remarks": msg}] if {
+is_non_compliant if {
 	supported_input
 	assessment_status == "non_compliant"
-	msg := sprintf("Cloud Custodian check %q marked resource %q as non-compliant (matched=%v, inventory_status=%q).", [check_name, resource_ref, assessment_matched, inventory_status])
 }
 
-violation[{"id": execution_violation_id, "remarks": msg}] if {
+is_compliant if {
+	supported_input
+	assessment_status == "compliant"
+}
+
+is_execution_failed if {
 	supported_input
 	has_execution_error
-	msg := sprintf("Cloud Custodian check %q failed while evaluating resource %q (execution_status=%q, error=%v, errors=%v).", [check_name, resource_ref, execution_status, execution_error, execution_errors])
 }
 
-violation[{"id": unsupported_input_violation_id, "remarks": msg}] if {
+non_compliant_remark := sprintf("Resource %q failed Cloud Custodian policy %q (resource=%q); the resource was found by this policy run (matched=%v, inventory_status=%q, matched_resource_count=%v).", [resource_ref, raw_policy_name, raw_policy_resource, assessment_matched, inventory_status, matched_resource_count]) if {
+	is_non_compliant
+}
+
+execution_error_remark := sprintf("Cloud Custodian policy %q ran with errors while evaluating resource %q (execution_status=%q, exit_code=%v). Errors: %s.", [raw_policy_name, resource_ref, execution_status, execution_exit_code, execution_error_details]) if {
+	is_execution_failed
+}
+
+unsupported_input_remark := sprintf("Unsupported Cloud Custodian policy input: expected source=%q schema_version=%q but received source=%q schema_version=%q.", ["cloud-custodian", "v2", input_source, input_schema_version]) if {
 	not supported_input
-	msg := sprintf("Unsupported Cloud Custodian policy input: expected source=%q schema_version=%q but received source=%q schema_version=%q.", ["cloud-custodian", "v2", input_source, input_schema_version])
+}
+
+violation[{"id": violation_id, "remarks": non_compliant_remark}] if {
+	is_non_compliant
+}
+
+violation[{"id": execution_violation_id, "remarks": execution_error_remark}] if {
+	is_execution_failed
+}
+
+violation[{"id": unsupported_input_violation_id, "remarks": unsupported_input_remark}] if {
+	not supported_input
+}
+
+remarks := sprintf("%s %s", [non_compliant_remark, execution_error_remark]) if {
+	is_non_compliant
+	is_execution_failed
+}
+
+remarks := non_compliant_remark if {
+	is_non_compliant
+	not is_execution_failed
+}
+
+remarks := execution_error_remark if {
+	not is_non_compliant
+	is_execution_failed
+}
+
+remarks := unsupported_input_remark if {
+	not supported_input
 }
 
 title := "Cloud Custodian policy received unsupported input" if {
@@ -269,6 +344,59 @@ description := sprintf("Cloud Custodian policy expected source=%q schema_version
 	not supported_input
 }
 
-description := sprintf("Cloud Custodian check %q evaluated resource %q with assessment status %q and execution status %q.", [check_name, resource_ref, assessment_status, execution_status]) if {
+description_base := sprintf("Cloud Custodian check %q failed for resource %q.", [check_name, resource_ref]) if {
 	supported_input
+	is_non_compliant
+}
+
+description_base := sprintf("Cloud Custodian check %q could not evaluate resource %q.", [check_name, resource_ref]) if {
+	supported_input
+	not is_non_compliant
+	execution_status == "error"
+}
+
+description_base := sprintf("Cloud Custodian check %q passed for resource %q.", [check_name, resource_ref]) if {
+	supported_input
+	is_compliant
+	execution_status != "error"
+}
+
+description_base := sprintf("Cloud Custodian check %q evaluated resource %q.", [check_name, resource_ref]) if {
+	supported_input
+	not is_non_compliant
+	not is_compliant
+	execution_status != "error"
+}
+
+has_non_compliance_message if {
+	is_non_compliant
+	non_compliance_message != ""
+}
+
+description_execution_error := sprintf("Execution errors: %s.", [execution_error_details]) if {
+	execution_status == "error"
+}
+
+description := sprintf("%s %s %s", [description_base, non_compliance_message, description_execution_error]) if {
+	supported_input
+	has_non_compliance_message
+	execution_status == "error"
+}
+
+description := sprintf("%s %s", [description_base, non_compliance_message]) if {
+	supported_input
+	has_non_compliance_message
+	execution_status != "error"
+}
+
+description := sprintf("%s %s", [description_base, description_execution_error]) if {
+	supported_input
+	not has_non_compliance_message
+	execution_status == "error"
+}
+
+description := description_base if {
+	supported_input
+	not has_non_compliance_message
+	execution_status != "error"
 }
