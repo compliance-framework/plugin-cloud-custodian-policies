@@ -42,7 +42,7 @@ risk_templates := [
 		"likelihood_hint": "moderate",
 		"impact_hint": "high",
 		"violation_ids": [violation_id],
-		"dedupe_label_keys": ["resource_type", "resource_id"],
+		"dedupe_label_keys": ["account_id", "resource_type", "resource_id"],
 		"label_schema": _label_schema,
 		"remediation": {
 			"title": "Remediate the failing Cloud Custodian policy condition",
@@ -62,7 +62,7 @@ risk_templates := [
 		"likelihood_hint": "moderate",
 		"impact_hint": "moderate",
 		"violation_ids": [execution_violation_id],
-		"dedupe_label_keys": ["resource_type", "resource_id"],
+		"dedupe_label_keys": ["account_id", "resource_type", "resource_id"],
 		"label_schema": _label_schema,
 		"remediation": {
 			"title": "Investigate and rerun the failing Cloud Custodian evaluation",

@@ -408,7 +408,7 @@ test_risk_templates_are_resource_deduped if {
 	risk_templates[0].name == "Cloud Custodian resource policy non-compliance"
 	risk_templates[0].title == "Cloud resource {{ .resource_type }}/{{ .resource_name }} may be non-compliant"
 	risk_templates[0].violation_ids == ["cloud_custodian_resource_non_compliant"]
-	risk_templates[0].dedupe_label_keys == ["resource_type", "resource_id"]
+	risk_templates[0].dedupe_label_keys == ["account_id", "resource_type", "resource_id"]
 	count(risk_templates[0].label_schema) == 6
 	risk_templates[0].label_schema[0].key == "resource_type"
 	risk_templates[0].label_schema[1].key == "resource_id"
@@ -423,7 +423,7 @@ test_risk_templates_are_resource_deduped if {
 	risk_templates[1].name == "Cloud Custodian resource evaluation failure"
 	risk_templates[1].title == "Cloud Custodian could not fully evaluate {{ .resource_type }}/{{ .resource_name }}"
 	risk_templates[1].violation_ids == ["cloud_custodian_resource_evaluation_failed"]
-	risk_templates[1].dedupe_label_keys == ["resource_type", "resource_id"]
+	risk_templates[1].dedupe_label_keys == ["account_id", "resource_type", "resource_id"]
 	count(risk_templates[1].label_schema) == 6
 	risk_templates[1].remediation.title == "Investigate and rerun the failing Cloud Custodian evaluation"
 	count(risk_templates[1].remediation.tasks) == 3
