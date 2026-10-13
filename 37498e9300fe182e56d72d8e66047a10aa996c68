@@ -3,3 +3,6 @@ Pass 1 (rules: core, rego-policy): approve, no findings on the diff.
 - ci.yml is the mock-plugin-policies-1 caller with all three pins moved to v1.5.2; top-level permissions: {}; SHA pins.
 - One strict-mode fix: _default_string's first body had an unused `fallback` argument; `_` there only (the other two bodies use it, so no argument-always-wildcard). Behaviour identical (opa eval comparison over 23 inputs).
 - Pre-existing, out of scope: no # METADATA block (REGO-META-001); release.yml/build-and-upload.yml use tag-pinned actions (W3 replaces them); 20 Regal warnings left by decision.
+
+lisa-design:
+Errors only (user decision 2026-10-13): Regal warnings are left as they are. dedupe_label_keys and all policy behaviour unchanged here; adding account_id to the dedupe keys is a separate later PR.
