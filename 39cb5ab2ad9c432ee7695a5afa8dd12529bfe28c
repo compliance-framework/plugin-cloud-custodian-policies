@@ -3,3 +3,7 @@ lisa-design:
 - account_id stays optional: the API appends `account_id=` with an empty value when the label is missing (risk_evidence_worker.go:510-516), so single-account evidence without account_id still dedupes by resource_type+resource_id. No policy change makes account_id mandatory.
 - The unsupported-input template keeps ["source", "schema_version"]: it is not per-resource.
 - account_id is already in _label_schema, which the API requires for every dedupe key (risk_template_service.go:544-545).
+
+lisa-selfreview:
+pass 1 (verdict approve; no code findings): fmt/check --strict/test 22/22/build pass on OPA 1.14.1, Regal 0.43.0 0 errors (20 pre-existing warnings, none on changed lines).
+- Question 9dcb55aac2c5 (data/one-time-risk-rekey, policies/cloud_custodian_resources_detected.rego:45 risk_templates): every open risk of the two resource templates re-keys once (the API appends `account_id=` even when the label is missing); old-key risks stay open until their evidence stream is satisfied. Listed for reviewers; not fixed.
