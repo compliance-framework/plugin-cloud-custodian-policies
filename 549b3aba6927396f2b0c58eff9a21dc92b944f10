@@ -1,0 +1,7 @@
+lisa-design:
+- Callers copied verbatim from mock-plugin-policies-1 with pins moved v1.5.1 -> v1.5.2 (6e7fc9c); no local edits, so the repo stays in lockstep with the train's reference callers.
+- Manifest seeded at 0.2.1 = releases/latest (final, tag v0.2.1 at 2cd6f51, ancestor of main); no bootstrap-sha needed.
+- No version.txt added by hand; release-please adds it in the first release PR (release-type simple).
+- ci.yml untouched: already on v1.5.2 with release-checks (from W2).
+- Bundle stays built from policies/ only: shared `opa build --bundle policies` is byte-identical to the old `opa build -b policies` at OPA 1.14.1.
+- README unchanged: it covers testing and make build, not releasing.
