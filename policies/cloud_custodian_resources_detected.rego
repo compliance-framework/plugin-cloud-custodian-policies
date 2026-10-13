@@ -114,7 +114,7 @@ input_schema_version := _default_string(object.get(input, "schema_version", ""),
 
 input_source := _default_string(object.get(input, "source", ""), "unknown-source")
 
-_default_string(value, fallback) := result if {
+_default_string(value, _) := result if {
 	is_string(value)
 	value != ""
 	result := value
