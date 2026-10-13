@@ -1,0 +1,5 @@
+lisa-design:
+- dedupe_label_keys order is ["account_id", "resource_type", "resource_id"]: outermost scope first (an account contains resources). The API sorts the keys before building the dedupe key (api internal/service/worker/risk_evidence_worker.go:505-507), so the order does not change the key; it only has to stay stable for the pinning tests.
+- account_id stays optional: the API appends `account_id=` with an empty value when the label is missing (risk_evidence_worker.go:510-516), so single-account evidence without account_id still dedupes by resource_type+resource_id. No policy change makes account_id mandatory.
+- The unsupported-input template keeps ["source", "schema_version"]: it is not per-resource.
+- account_id is already in _label_schema, which the API requires for every dedupe key (risk_template_service.go:544-545).
