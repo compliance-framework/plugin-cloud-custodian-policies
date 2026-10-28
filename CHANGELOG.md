@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/compliance-framework/plugin-cloud-custodian-policies/compare/v0.2.2...v0.2.3) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** bump opa to v1.21.3 ([#12](https://github.com/compliance-framework/plugin-cloud-custodian-policies/issues/12)) ([a0e4211](https://github.com/compliance-framework/plugin-cloud-custodian-policies/commit/a0e421104dd4d136ebd5e2f73853255ffdcf3adc))
+
 ## [0.2.2](https://github.com/compliance-framework/plugin-cloud-custodian-policies/compare/v0.2.1...v0.2.2) (2026-10-14)
 
 
